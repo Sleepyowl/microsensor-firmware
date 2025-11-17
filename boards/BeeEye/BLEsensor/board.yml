@@ -1,0 +1,5 @@
+board:
+  name: BLEsensor
+  vendor: BeeEye
+  socs:
+    - name: nrf52811

@@ -1,0 +1,16 @@
+{
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/microsensor/compile_commands.json",
+    "files.associations": {
+        "rtc.h": "c",
+        "state.h": "c",
+        "policy.h": "c",
+        "devicetree.h": "c",
+        "gap.h": "c",
+        "byteorder.h": "c",
+        "hci.h": "c",
+        "nrf_reset.h": "c",
+        "reboot.h": "c",
+        "device_runtime.h": "c",
+        "random": "c"
+    }
+}
