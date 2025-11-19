@@ -11,6 +11,12 @@
         "nrf_reset.h": "c",
         "reboot.h": "c",
         "device_runtime.h": "c",
-        "random": "c"
+        "random": "c",
+        "sensor.h": "c",
+        "ble_server.h": "c",
+        "stdint.h": "c",
+        "log.h": "c",
+        "bluetooth.h": "c",
+        "kernel.h": "c"
     }
 }

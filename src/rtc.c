@@ -1,5 +1,6 @@
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
+#include <zephyr/logging/log.h>
 #include <zephyr/drivers/rtc.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/i2c.h>
@@ -13,25 +14,18 @@
 #include <stdint.h>
 
 
+LOG_MODULE_REGISTER(app_rtc, LOG_LEVEL_DBG);
+
 int blink(int count, int duration);
 int megablink(int countA, int countB, int spacing);
 
-#define I2C_NODE       DT_NODELABEL(i2c0)
-#define RV3028_NODE    DT_CHILD(I2C_NODE, rv3028_52)
-
-static const struct device *i2c0 = DEVICE_DT_GET(I2C_NODE);
-static const struct device *rtc = DEVICE_DT_GET_ONE(microcrystal_rv3028);
-static const struct gpio_dt_spec btn = GPIO_DT_SPEC_GET(DT_ALIAS(sw0), gpios);
-
-//DEVICE_DT_GET(RV3028_NODE);
+#define RV3028_NODE    DT_NODELABEL(rv3028)
+static const struct device *rtc = DEVICE_DT_GET(RV3028_NODE);
+static const struct gpio_dt_spec btn = GPIO_DT_SPEC_GET(DT_NODELABEL(button0), gpios);
 
 /* INT (~INT) GPIO from DTS */
-#define RV3028_INT_NODE  DT_GPIO_CTLR(RV3028_NODE, int_gpios)
-#define RV3028_INT_PIN   DT_GPIO_PIN(RV3028_NODE, int_gpios)
-#define RV3028_INT_FLAGS DT_GPIO_FLAGS(RV3028_NODE, int_gpios)
-static const struct device *const int_gpio = DEVICE_DT_GET(RV3028_INT_NODE);
+static const struct gpio_dt_spec int_gpio = GPIO_DT_SPEC_GET(RV3028_NODE, int_gpios);
 
-/* Dummy cb: required so driver sets AIE and wires the IRQ */
 static void rv3028_alarm_cb(const struct device *dev, uint16_t id, void *user)
 {
 	ARG_UNUSED(dev); ARG_UNUSED(id); ARG_UNUSED(user);
@@ -40,19 +34,27 @@ static void rv3028_alarm_cb(const struct device *dev, uint16_t id, void *user)
 /* minutes → next occurrence (HH:MM), day wildcarded */
 int set_alarm_and_sleep(int minutes)
 {
+    int err;
     if (!device_is_ready(rtc)) {
-        megablink(6, 3, 400);
+        LOG_ERR("RTC is not ready");
         return -ENODEV;
     }
-    if (!device_is_ready(int_gpio)) {
-        megablink(7, 3, 400);
+
+    if (!device_is_ready(int_gpio.port)) {
+        LOG_ERR("RTC INT GPIO is not ready");
+        return -ENODEV;
+    }
+
+    if (!device_is_ready(btn.port)) {
+        LOG_ERR("BUTTON GPIO is not ready");
         return -ENODEV;
     }
 
     struct rtc_time now;
-    if (rtc_get_time(rtc, &now)) {
-        megablink(2, 3, 400);
-        return -EIO;
+    err = rtc_get_time(rtc, &now);
+    if (err) {
+        LOG_ERR("RTC getting time failed: %d", err);
+        return err;
     }
 
     int total = (now.tm_hour * 60 + now.tm_min + minutes) % (24 * 60);
@@ -61,32 +63,29 @@ int set_alarm_and_sleep(int minutes)
     at.tm_min  = total % 60;
 
     uint16_t mask = RTC_ALARM_TIME_MASK_HOUR | RTC_ALARM_TIME_MASK_MINUTE;
-    if (rtc_alarm_set_time(rtc, 0, mask, &at)) {
-        megablink(3, 3, 400);
-        return -EIO;
+    err = rtc_alarm_set_time(rtc, 0, mask, &at);
+    if (err) {
+        LOG_ERR("RTC setting alarm time failed: %d", err);
+        return err;
     }
 
-    if (rtc_alarm_set_callback(rtc, 0, rv3028_alarm_cb, NULL)) {
-        megablink(4, 3, 400);
-        return -EIO;
+    err = rtc_alarm_set_callback(rtc, 0, rv3028_alarm_cb, NULL);
+    if (err) {
+        LOG_ERR("RTC setting alarm callback failed: %d", err);
+        return err;
     }
 
-    /* RTC interrupt line */
-    gpio_pin_configure(int_gpio, RV3028_INT_PIN, GPIO_INPUT | GPIO_PULL_UP);
-    nrf_gpio_cfg_sense_input(RV3028_INT_PIN,
-                             NRF_GPIO_PIN_PULLUP,
-                             NRF_GPIO_PIN_SENSE_LOW);
+    // Configure RTC INT wake source
+    gpio_pin_configure_dt(&int_gpio, GPIO_INPUT);
+    nrf_gpio_cfg_sense_input(int_gpio.pin, NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
 
-    // button wake
-    if (device_is_ready(btn.port)) {
-        gpio_pin_configure_dt(&btn, GPIO_INPUT);
-        nrf_gpio_cfg_sense_input(btn.pin,
-                                 NRF_GPIO_PIN_NOPULL,
-                                 NRF_GPIO_PIN_SENSE_LOW);
-    }
+    // Configure button wake source
+    gpio_pin_configure_dt(&btn, GPIO_INPUT);
+    nrf_gpio_cfg_sense_input(btn.pin, NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_SENSE_LOW);
 
-    // power off
-    k_msleep(100);
+    // Deep Sleep (System OFF)
+    LOG_INF("Entering deep sleep (System OFF)");
+    k_msleep(100); // Give logging subsystem time to transmit
     nrf_power_system_off(NRF_POWER);
     return 0;
 }
@@ -94,21 +93,22 @@ int set_alarm_and_sleep(int minutes)
 int intinitialize_rtc(bool setTime)
 {
 
-    int ret = device_init(rtc);
-    if (ret && ret != -EALREADY) {
-        megablink(1,15,500);
+    int err = device_init(rtc);
+    if (err && err != -EALREADY) {
+        LOG_ERR("RTC device failed to initialize: %d", err);
         return -ENODEV;
     }
 
     if (!device_is_ready(rtc)) {
-        megablink(3,5,500);
+        LOG_ERR("RTC is not ready");
         return -ENODEV;
     }
 
     struct rtc_time tm;
-    ret = rtc_get_time(rtc, &tm);
+    err = rtc_get_time(rtc, &tm);
 
-    if (ret == -ENODATA || setTime) {
+    if (err == -ENODATA || setTime) {
+        LOG_INF("setting RTC time");
         /* RTC has invalid time (probably power loss). Set default. */
         struct rtc_time init = {
             .tm_year = 2025 - 1900,  /* years since 1900 */
@@ -119,24 +119,31 @@ int intinitialize_rtc(bool setTime)
             .tm_sec  = 0,
         };
 
-        ret = rtc_set_time(rtc, &init);
-        if (ret) {
-            return ret;
+        err = rtc_set_time(rtc, &init);
+        if (err) {
+            LOG_ERR("Failed to set RTC time: %d", err);
+            return err;
         }
-    } else if (ret) {
-        megablink(5,5,500);
-        return ret;
+    } else if (err) {
+        LOG_ERR("Failed to get RTC time: %d", err);
+        return err;
     }
 
     return 0;
 }
 
 int get_rtc_unix_time(uint32_t* unix_timestamp) {
+    if (!device_is_ready(rtc)) {
+        LOG_ERR("RTC is not ready");
+        return -ENODEV;
+    }
+
     if (unix_timestamp) {
         char buf[sizeof(struct rtc_time)]; // anti-aliasing
-        int ret = rtc_get_time(rtc, (struct rtc_time*)buf);
-        if (ret) {
-            return ret;
+        int err = rtc_get_time(rtc, (struct rtc_time*)buf);
+        if (err) {
+            LOG_ERR("Failed to get RTC time: %d", err);
+            return err;
         }
         *unix_timestamp = timeutil_timegm64((struct tm*)buf);
     }
