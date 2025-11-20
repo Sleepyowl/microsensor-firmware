@@ -25,7 +25,7 @@
 		compatible = "gpio-keys";
 
 		button0: button_0 {
-			gpios = <&gpio0 9 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			gpios = <&gpio0 9 GPIO_ACTIVE_LOW>; // External pull-up
 			label = "Push button switch 0";
 			zephyr,code = <INPUT_KEY_0>;
 		};
