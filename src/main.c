@@ -1,5 +1,6 @@
 #include "sensor.h"
 #include "ble_server.h"
+#include "rtc.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -48,11 +49,6 @@ int megablink(int countA, int countB, int spacing) {
     return 0;
 }
 
-
-int intinitialize_rtc(bool setTime);
-int set_alarm_and_sleep(int minutes);
-int btadv(void);
-
 __attribute__((section(".noinit"))) static uint32_t boot_resetreas;
 
 static int capture_resetreas(void)
@@ -70,13 +66,12 @@ int xmain(void) {
     nrf_power_system_off(NRF_POWER);
     while(1);
 }
-
 static const struct gpio_dt_spec btn = GPIO_DT_SPEC_GET(DT_NODELABEL(button0), gpios);
 
 int main(void)
 {
-    const bool wokenFromSystemOff = boot_resetreas & NRF_POWER_RESETREAS_OFF_MASK;
-    if (!wokenFromSystemOff) {
+    const bool woke_from_sysoff = boot_resetreas & NRF_POWER_RESETREAS_OFF_MASK;
+    if (!woke_from_sysoff) {
         LOG_INF("Power-off boot");
         k_msleep(500); // sleep for half a second (let bulk capacitor charge up)
         blink(1,100);  // indicator that thing is working
@@ -87,11 +82,11 @@ int main(void)
 
     // If we are woken up by a button press then reset the clock 
     // because alarm is aligned to minute boundary
-    bool button_is_pressed = wokenFromSystemOff && gpio_pin_get_dt(&btn) == 0; // SW0 is active-low
+    bool button_is_pressed = woke_from_sysoff && gpio_pin_get_dt(&btn) == 0; // SW0 is active-low
     if (button_is_pressed) {
         LOG_INF("Woken by button press");
     }
-    if(intinitialize_rtc(button_is_pressed)) {
+    if(intinitialize_rtc(false)) {
         LOG_ERR("RTC init failed");
         megablink(3,3, 300);
         k_msleep(5000);
@@ -99,7 +94,13 @@ int main(void)
         return 0;
     }
 
-    if(btadv()) {
+    print_rtc_time();
+
+    if(!woke_from_sysoff) {
+        enable_rtc_pit(SENSOR_TRANSMIT_PERIOD);
+    }
+
+    if(btadv(!woke_from_sysoff || button_is_pressed)) {
         LOG_ERR("BT adv failed");
         megablink(4,4, 300);
         k_msleep(5000);

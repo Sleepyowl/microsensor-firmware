@@ -1,3 +1,7 @@
 #pragma once
+#include <stdbool.h>
 
-int btadv(void);
+
+#define SENSOR_TRANSMIT_PERIOD 60 // seconds
+
+int btadv(bool pairing);
