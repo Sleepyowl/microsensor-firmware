@@ -1,0 +1,10 @@
+identifier: MPsensor/nrf54l15/cpuapp
+name: Multiprotocol Temperature and Humidity Sensor
+vendor: BeeEye
+arch: arm
+toolchain:
+  - zephyr
+sysbuild: true
+ram: 188
+flash: 1428
+supported: []

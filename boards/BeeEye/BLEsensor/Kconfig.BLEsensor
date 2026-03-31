@@ -1,2 +1,0 @@
-config BOARD_BLESENSOR
-	select SOC_NRF52811_QFAA
