@@ -1,6 +1,7 @@
 #include "ble_server.h"
 #include "sensor.h"
 #include "rtc.h"
+#include "vsense.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -179,6 +180,7 @@ BT_GATT_SERVICE_DEFINE(time_service,
 struct __attribute__((packed)) ManufacturerData {
     struct SensorData   sensorData;
     uint32_t            nextWindow;
+    uint16_t            batteryMilliVolt;
 } manufacturerData;
 
 static char name[32];
@@ -191,7 +193,12 @@ int set_adv_data(struct bt_le_ext_adv *adv) {
             LOG_ERR("Couldn't read sensor: %d", err);
             return err;
         }
+        err = vsense_measure_mv(&manufacturerData.batteryMilliVolt);
+        if(err) {
+            LOG_ERR("Couldn't get battery voltage %d", err);
+        }
     }
+
     uint32_t rtc_now = 0;
     err = get_rtc_unix_time(&rtc_now);
     if(err) {

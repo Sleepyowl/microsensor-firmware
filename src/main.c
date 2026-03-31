@@ -1,6 +1,7 @@
 #include "sensor.h"
 #include "ble_server.h"
 #include "rtc.h"
+#include "vsense.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -62,6 +63,15 @@ int main(void)
         k_msleep(500); // more sleep for capacitor
     } else {
         LOG_INF("Deep sleep (system off) wake");
+    }
+
+    // Battery
+    uint16_t mv = 0;
+    int ret = vsense_measure_mv(&mv);
+    if(ret) {
+        LOG_ERR("Couldn't get battery voltage %d", ret);
+    } else {
+        LOG_INF("VSENSE = %dmV", mv);
     }
 
     // If we are woken up by a button press then reset the clock 
