@@ -4,34 +4,29 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
-#include <zephyr/drivers/uart.h>
-#include <zephyr/drivers/rtc.h>
-#include <zephyr/sys/timeutil.h>
-#include <zephyr/drivers/i2c.h>
+#include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/pm/pm.h>
-#include <zephyr/pm/state.h>
 #include <zephyr/sys/reboot.h>
-#include <hal/nrf_ficr.h>
-#include <hal/nrf_power.h>
+#include <zephyr/drivers/hwinfo.h>
 
 
 LOG_MODULE_REGISTER(app_main, LOG_LEVEL_DBG);
 
 
 //#define NOBLINK
-
+static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_NODELABEL(led0), gpios);
 int blink(int count, int duration) {
     #ifndef NOBLINK
-    const struct device *port = DEVICE_DT_GET(DT_NODELABEL(gpio0));
-    if (!device_is_ready(port)) return -ENODEV;
-    gpio_pin_configure(port, 11, GPIO_OUTPUT_INACTIVE);
+    if (!device_is_ready(led.port)) return -ENODEV;
+
+    gpio_pin_configure_dt(&led, GPIO_OUTPUT_INACTIVE);
     for(int i=0;i<count;++i) {
-        gpio_pin_toggle(port, 11);
+        gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
         k_msleep(duration);
-        gpio_pin_toggle(port, 11);
+        gpio_pin_configure_dt(&led, GPIO_OUTPUT_INACTIVE);
         k_msleep(duration);
     }
     #endif
@@ -49,28 +44,17 @@ int megablink(int countA, int countB, int spacing) {
     return 0;
 }
 
-__attribute__((section(".noinit"))) static uint32_t boot_resetreas;
-
-static int capture_resetreas(void)
-{
-    uint32_t reas = nrf_power_resetreas_get(NRF_POWER);
-    boot_resetreas = reas;
-    nrf_power_resetreas_clear(NRF_POWER, 0xFFFFFFFF);
-    return 0;
-}
-SYS_INIT(capture_resetreas, PRE_KERNEL_1, 0);
-
-
-int xmain(void) {
-    nrf_power_dcdcen_set(NRF_POWER, false);
-    nrf_power_system_off(NRF_POWER);
-    while(1);
-}
 static const struct gpio_dt_spec btn = GPIO_DT_SPEC_GET(DT_NODELABEL(button0), gpios);
 
 int main(void)
 {
-    const bool woke_from_sysoff = boot_resetreas & NRF_POWER_RESETREAS_OFF_MASK;
+    uint32_t reset_cause = 0;
+    int err = hwinfo_get_reset_cause(&reset_cause);
+    if (err == 0) {
+        hwinfo_clear_reset_cause();
+    }
+
+    const bool woke_from_sysoff = reset_cause & RESET_LOW_POWER_WAKE;
     if (!woke_from_sysoff) {
         LOG_INF("Power-off boot");
         k_msleep(500); // sleep for half a second (let bulk capacitor charge up)
