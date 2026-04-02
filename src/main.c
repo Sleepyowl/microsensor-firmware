@@ -12,6 +12,7 @@
 #include <zephyr/pm/pm.h>
 #include <zephyr/sys/reboot.h>
 #include <zephyr/drivers/hwinfo.h>
+#include <zephyr/dfu/mcuboot.h>
 
 
 LOG_MODULE_REGISTER(app_main, LOG_LEVEL_DBG);
@@ -52,7 +53,21 @@ int megablink(int countA, int countB, int spacing) {
     return 0;
 }
 
-static const struct gpio_dt_spec btn = GPIO_DT_SPEC_GET(DT_NODELABEL(button0), gpios);
+static int confirm_image_once(void)
+{
+    int rc;
+
+    if (boot_is_img_confirmed()) {
+        return 0;
+    }
+
+    rc = boot_write_img_confirmed();
+    if (rc) {
+        return rc;
+    }
+
+    return 0;
+}
 
 int main(void)
 {
@@ -91,6 +106,8 @@ int main(void)
         sys_reboot(SYS_REBOOT_COLD);
         return 0;
     }
+
+    confirm_image_once();
 
     int status = set_alarm_and_sleep(2);
     if(status) {
