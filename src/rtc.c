@@ -48,11 +48,11 @@ int set_alarm_and_sleep(int minutes) {
 
     // Configure RTC INT wake source
     gpio_pin_configure_dt(&int_gpio, GPIO_INPUT);
-    nrf_gpio_cfg_sense_input(int_gpio.pin, NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
+    gpio_pin_interrupt_configure_dt(&int_gpio, GPIO_INT_LEVEL_ACTIVE);
 
     // Configure button wake source
     gpio_pin_configure_dt(&btn, GPIO_INPUT);
-    nrf_gpio_cfg_sense_input(btn.pin, NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_SENSE_LOW);
+    gpio_pin_interrupt_configure_dt(&btn, GPIO_INT_LEVEL_ACTIVE);
 
     // Deep Sleep (System OFF)
     LOG_INF("Entering deep sleep (System OFF)");
