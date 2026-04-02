@@ -223,6 +223,24 @@ int set_adv_data(struct bt_le_ext_adv *adv) {
         LOG_ERR("Couldn't set adv data: %d", err);
         return err;
     }
+    return 0;
+}
+
+static void count_conn_cb(struct bt_conn *conn, void *user_data)
+{
+    int *count = user_data;
+
+    if (bt_conn_is_type(conn, BT_CONN_TYPE_LE)) {
+        (*count)++;
+    }
+}
+
+static int le_conn_count(void)
+{
+    int count = 0;
+
+    bt_conn_foreach(BT_CONN_TYPE_LE, count_conn_cb, &count);
+    return count;
 }
 
 int btadv(bool pairing) {
@@ -297,6 +315,16 @@ int btadv(bool pairing) {
             }
             k_msleep(100);
         }
+    }
+
+    err = bt_le_ext_adv_stop(adv);
+    if (err && err != -EALREADY) {
+        LOG_WRN("bt_le_ext_adv_stop failed: %d", err);        
+    }
+
+    while (le_conn_count() > 0) {
+        LOG_DBG("Waiting for BLE connection(s) to close...");
+        k_msleep(200);
     }
 
     err = bt_disable();
