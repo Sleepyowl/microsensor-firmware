@@ -17,8 +17,15 @@
 LOG_MODULE_REGISTER(app_main, LOG_LEVEL_DBG);
 
 
-//#define NOBLINK
+static const struct gpio_dt_spec pair_button = GPIO_DT_SPEC_GET(DT_NODELABEL(button0), gpios);
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_NODELABEL(led0), gpios);
+
+static bool pair_button_is_pressed(void)
+{
+    int v = gpio_pin_get_dt(&pair_button);
+    return v > 0;   /* logical active level */
+}
+
 int blink(int count, int duration) {
     #ifndef NOBLINK
     if (!device_is_ready(led.port)) return -ENODEV;
@@ -50,8 +57,8 @@ static const struct gpio_dt_spec btn = GPIO_DT_SPEC_GET(DT_NODELABEL(button0), g
 int main(void)
 {
     uint32_t reset_cause = 0;
-    int err = hwinfo_get_reset_cause(&reset_cause);
-    if (err == 0) {
+    int ret = hwinfo_get_reset_cause(&reset_cause);
+    if (ret == 0) {
         hwinfo_clear_reset_cause();
     }
 
@@ -61,40 +68,23 @@ int main(void)
         k_msleep(500); // sleep for half a second (let bulk capacitor charge up)
         blink(1,100);  // indicator that thing is working
         k_msleep(500); // more sleep for capacitor
+
+
+        ret = enable_rtc_pit(SENSOR_TRANSMIT_PERIOD);
+        if(ret) {
+            LOG_ERR("RTC PIT init failed");
+            megablink(3,3, 300);
+            k_msleep(5000);
+            sys_reboot(SYS_REBOOT_COLD);
+            return 0;
+        }        
     } else {
         LOG_INF("Deep sleep (system off) wake");
     }
 
-    // Battery
-    uint16_t mv = 0;
-    int ret = vsense_measure_mv(&mv);
-    if(ret) {
-        LOG_ERR("Couldn't get battery voltage %d", ret);
-    } else {
-        LOG_INF("VSENSE = %dmV", mv);
-    }
+    bool pairing_mode = woke_from_sysoff || pair_button_is_pressed(); // SW0 is active-low
 
-    // If we are woken up by a button press then reset the clock 
-    // because alarm is aligned to minute boundary
-    bool button_is_pressed = woke_from_sysoff && gpio_pin_get_dt(&btn) == 0; // SW0 is active-low
-    if (button_is_pressed) {
-        LOG_INF("Woken by button press");
-    }
-    if(intinitialize_rtc(false)) {
-        LOG_ERR("RTC init failed");
-        megablink(3,3, 300);
-        k_msleep(5000);
-        sys_reboot(SYS_REBOOT_COLD);
-        return 0;
-    }
-
-    print_rtc_time();
-
-    if(!woke_from_sysoff) {
-        enable_rtc_pit(SENSOR_TRANSMIT_PERIOD);
-    }
-
-    if(btadv(!woke_from_sysoff || button_is_pressed)) {
+    if(btadv(pairing_mode)) {
         LOG_ERR("BT adv failed");
         megablink(4,4, 300);
         k_msleep(5000);
