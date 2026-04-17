@@ -12,3 +12,15 @@ file(GLOB app_sources CONFIGURE_DEPENDS
 )
 
 target_sources(app PRIVATE ${app_sources})
+
+# Strict compile checks
+target_compile_options(app PRIVATE
+    -Wall
+    -Wextra
+
+    # 1) No implicit function declarations
+    -Werror=implicit-function-declaration
+
+    # 2) Non-void function must return on all paths
+    -Werror=return-type
+)

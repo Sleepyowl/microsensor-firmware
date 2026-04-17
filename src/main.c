@@ -1,11 +1,10 @@
-#include "sensor.h"
 #include "ble_server.h"
 #include "rtc.h"
 #include "vsense.h"
+#include "deep_sleep.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
-#include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
@@ -17,9 +16,43 @@
 
 LOG_MODULE_REGISTER(app_main, LOG_LEVEL_DBG);
 
-
 static const struct gpio_dt_spec pair_button = GPIO_DT_SPEC_GET(DT_NODELABEL(button0), gpios);
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_NODELABEL(led0), gpios);
+
+static bool pair_button_is_pressed(void);
+static int blink(int count, int duration);
+static int megablink(int countA, int countB, int spacing);
+static int confirm_image_once(void);
+static void blink_and_restart(int ser_num);
+static bool get_is_low_power_wake(void);
+static int initialize_peripherals(bool fast);
+
+void main(void)
+{
+    int ret = 0;
+    const bool is_lp_wake = get_is_low_power_wake();
+
+    ret = initialize_peripherals(is_lp_wake);
+    if (ret) {
+        blink_and_restart(3);
+        return;
+    }
+
+    confirm_image_once();
+    
+    bool pairing_mode = is_lp_wake || pair_button_is_pressed();
+    if(btadv(pairing_mode)) {
+        blink_and_restart(4);
+        return;
+    }
+
+    int status = enter_deep_sleep();
+    if(status) {
+        blink_and_restart(5);
+    }
+
+    return;
+}
 
 static bool pair_button_is_pressed(void)
 {
@@ -27,7 +60,7 @@ static bool pair_button_is_pressed(void)
     return v > 0;   /* logical active level */
 }
 
-int blink(int count, int duration) {
+static int blink(int count, int duration) {
     #ifndef NOBLINK
     if (!device_is_ready(led.port)) return -ENODEV;
 
@@ -43,7 +76,7 @@ int blink(int count, int duration) {
     return 0;
 }
 
-int megablink(int countA, int countB, int spacing) {
+static int megablink(int countA, int countB, int spacing) {
     #ifndef NOBLINK
     for(int i=0;i<countB;++i) {
         blink(countA, 200);
@@ -69,52 +102,38 @@ static int confirm_image_once(void)
     return 0;
 }
 
-int main(void)
-{
+static void blink_and_restart(int ser_num) {
+    megablink(ser_num, 3, 300);
+    k_msleep(5000);
+    sys_reboot(SYS_REBOOT_COLD);
+    while(1) {
+        k_sleep(K_FOREVER);
+    }
+}
+
+static bool get_is_low_power_wake(void) {
     uint32_t reset_cause = 0;
     int ret = hwinfo_get_reset_cause(&reset_cause);
     if (ret == 0) {
         hwinfo_clear_reset_cause();
     }
 
-    const bool woke_from_sysoff = reset_cause & RESET_LOW_POWER_WAKE;
-    if (!woke_from_sysoff) {
-        LOG_INF("Power-off boot");
-        k_msleep(500); // sleep for half a second (let bulk capacitor charge up)
-        blink(1,100);  // indicator that thing is working
-        k_msleep(500); // more sleep for capacitor
+    return reset_cause & RESET_LOW_POWER_WAKE;
+}
 
+static int initialize_peripherals(bool fast) {
+    int ret = 0;
+    if (!fast) {
+        LOG_INF("Normal boot");
+        blink(1, 200);  // indicator that thing is working
 
         ret = enable_rtc_pit(SENSOR_TRANSMIT_PERIOD);
         if(ret) {
             LOG_ERR("RTC PIT init failed");
-            megablink(3,3, 300);
-            k_msleep(5000);
-            sys_reboot(SYS_REBOOT_COLD);
             return 0;
         }        
     } else {
-        LOG_INF("Deep sleep (system off) wake");
-    }
-
-    bool pairing_mode = woke_from_sysoff || pair_button_is_pressed(); // SW0 is active-low
-
-    if(btadv(pairing_mode)) {
-        LOG_ERR("BT adv failed");
-        megablink(4,4, 300);
-        k_msleep(5000);
-        sys_reboot(SYS_REBOOT_COLD);
-        return 0;
-    }
-
-    confirm_image_once();
-
-    int status = set_alarm_and_sleep(2);
-    if(status) {
-        LOG_ERR("Deep sleep (System OFF) failed");
-        megablink(2,2, 100);
-        k_msleep(5000);
-        sys_reboot(SYS_REBOOT_COLD);
+        LOG_INF("Fast boot (wake from System off)");
     }
 
     return 0;

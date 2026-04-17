@@ -1,5 +1,5 @@
 #include "ble_server.h"
-#include "sensor.h"
+#include "sensor_hdc2080.h"
 #include "rtc.h"
 #include "vsense.h"
 
@@ -176,8 +176,11 @@ BT_GATT_SERVICE_DEFINE(time_service,
                            read_currenttime, write_currenttime, NULL)
 );
 
+#define BEEEYE_MAGIC 0xBEEE
 struct __attribute__((packed)) ManufacturerData {
-    struct SensorData   sensorData;
+    uint16_t            magic;
+    int16_t             temp;
+    int16_t             hum;
     uint32_t            nextWindow;
     uint16_t            batteryMilliVolt;
 } manufacturerData;
@@ -185,13 +188,19 @@ struct __attribute__((packed)) ManufacturerData {
 static char name[32];
 int set_adv_data(struct bt_le_ext_adv *adv) {
     int err = 0;
+    int16_t temp = 0;
+    int16_t hum = 0;
     uint16_t mv = 0;
     // Build manufacturer data
-    if(manufacturerData.sensorData.magic == 0) {
-        err = hdc2080_get_temp_humidity(&manufacturerData.sensorData);
+    if(manufacturerData.magic == 0) {
+        manufacturerData.magic = BEEEYE_MAGIC;
+        err = hdc2080_get_temp_humidity_x256(&temp, &hum);
         if(err) {
             LOG_ERR("Couldn't read sensor: %d", err);
             return err;
+        } else {
+            manufacturerData.temp = temp;
+            manufacturerData.hum = hum;
         }
 
         err = vsense_measure_mv(&mv);

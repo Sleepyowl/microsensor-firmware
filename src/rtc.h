@@ -17,10 +17,9 @@ struct __attribute__((packed)) cts_current_time {
 };
 
 int intinitialize_rtc(bool setTime);
-int set_alarm_and_sleep(int minutes);
 int get_rtc_unix_time(uint32_t* unix_timestamp);
 int set_rtc_unix_time(uint32_t unix_timestamp);
-int print_rtc_time();
+int print_rtc_time(void);
 int get_rtc_cts_time(struct cts_current_time* unix_timestamp);
 int set_rtc_cts_time(const struct cts_current_time* unix_timestamp);
 int enable_rtc_pit(uint16_t period_seconds);

@@ -24,42 +24,6 @@ int megablink(int countA, int countB, int spacing);
 
 #define RV3028_NODE    DT_NODELABEL(rv3028)
 static const struct device *rtc = DEVICE_DT_GET(RV3028_NODE);
-static const struct gpio_dt_spec btn = GPIO_DT_SPEC_GET(DT_NODELABEL(button0), gpios);
-
-/* INT (~INT) GPIO from DTS */
-static const struct gpio_dt_spec int_gpio = GPIO_DT_SPEC_GET(RV3028_NODE, int_gpios);
-
-/* minutes → next occurrence (HH:MM), day wildcarded */
-int set_alarm_and_sleep(int minutes) {    
-    if (!device_is_ready(rtc)) {
-        LOG_ERR("RTC is not ready");
-        return -ENODEV;
-    }
-
-    if (!device_is_ready(int_gpio.port)) {
-        LOG_ERR("RTC INT GPIO is not ready");
-        return -ENODEV;
-    }
-
-    if (!device_is_ready(btn.port)) {
-        LOG_ERR("BUTTON GPIO is not ready");
-        return -ENODEV;
-    }
-
-    // Configure RTC INT wake source
-    gpio_pin_configure_dt(&int_gpio, GPIO_INPUT);
-    gpio_pin_interrupt_configure_dt(&int_gpio, GPIO_INT_LEVEL_ACTIVE);
-
-    // Configure button wake source
-    gpio_pin_configure_dt(&btn, GPIO_INPUT);
-    gpio_pin_interrupt_configure_dt(&btn, GPIO_INT_LEVEL_ACTIVE);
-
-    // Deep Sleep (System OFF)
-    LOG_INF("Entering deep sleep (System OFF)");
-    k_msleep(200); // Give logging subsystem time to transmit
-    sys_poweroff();
-    return 0;
-}
 
 int rv3028_clear_tf(const struct device *dev);
 int intinitialize_rtc(bool setTime) {
@@ -149,7 +113,7 @@ int set_rtc_unix_time(uint32_t unix_timestamp) {
     return rtc_set_time(rtc, rtc_ptr);
 }
 
-int print_rtc_time() {
+int print_rtc_time(void) {
     if (!device_is_ready(rtc))
         return -ENODEV;
 
