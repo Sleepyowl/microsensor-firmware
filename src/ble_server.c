@@ -75,7 +75,6 @@ struct bt_le_adv_param adv_param_pair = {
 /* Characteristic storage */
 static int16_t g_temperature = 0;
 static int16_t g_humidity = 0;
-static uint32_t g_timestamp = 0;
 
 /* Read callbacks */
 static ssize_t read_temperature(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset)
@@ -128,7 +127,7 @@ static ssize_t write_currenttime(struct bt_conn *conn,
         return BT_GATT_ERR(BT_ATT_ERR_INVALID_ATTRIBUTE_LEN);
     }
 
-    struct cts_current_time *time = buf;
+    const struct cts_current_time *time = buf;
     LOG_DBG("Writing current time: %04u-%02u-%02u %02u:%02u:%02u",
             sys_le16_to_cpu(time->year),
             time->month,
@@ -186,6 +185,7 @@ struct __attribute__((packed)) ManufacturerData {
 static char name[32];
 int set_adv_data(struct bt_le_ext_adv *adv) {
     int err = 0;
+    uint16_t mv = 0;
     // Build manufacturer data
     if(manufacturerData.sensorData.magic == 0) {
         err = hdc2080_get_temp_humidity(&manufacturerData.sensorData);
@@ -193,9 +193,12 @@ int set_adv_data(struct bt_le_ext_adv *adv) {
             LOG_ERR("Couldn't read sensor: %d", err);
             return err;
         }
-        err = vsense_measure_mv(&manufacturerData.batteryMilliVolt);
+
+        err = vsense_measure_mv(&mv);
         if(err) {
             LOG_ERR("Couldn't get battery voltage %d", err);
+        } else {
+            manufacturerData.batteryMilliVolt = mv;
         }
     }
 

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 description: Custom voltage sense peripheral
 
-compatible: "custom,vsense"
+compatible: "bee-eye,vsense"
 
 properties:
   label:

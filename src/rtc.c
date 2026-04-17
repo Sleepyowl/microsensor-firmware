@@ -167,6 +167,8 @@ int print_rtc_time() {
         tm.tm_min,
         tm.tm_sec
     );
+
+    return 0;
 }
 
 

@@ -4,7 +4,7 @@
 
 / {
 	model = "Multiprotocol Temperature and Humidity Sensor";
-	compatible = "BeeEye,MPsensor-cpuapp";
+	compatible = "bee-eye,MPsensor-cpuapp";
 
 	chosen {
 		zephyr,console = &uart21;
@@ -34,7 +34,7 @@
 	};
 
 	vsense: vsense {
-        compatible = "custom,vsense";
+        compatible = "bee-eye,vsense";
         enable-gpios = <&gpio0 2 GPIO_ACTIVE_LOW>;
         io-channels = <&adc 5>; /* example channel index */
         label = "VSENSE";
@@ -202,6 +202,6 @@
 
 
 
-#include <nordic/nrf54l15_partition.dtsi>
+#include "partition.dtsi"
 
 
