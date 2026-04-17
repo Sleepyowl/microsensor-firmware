@@ -56,7 +56,7 @@ static const struct bt_le_ext_adv_cb adv_cb = {
 
 struct bt_le_adv_param adv_param_normal = {
     .id = BT_ID_DEFAULT,
-    .sid = BT_GAP_SID_MIN,
+    .sid = 0,
     .secondary_max_skip = 0,
     .interval_min = BT_GAP_ADV_FAST_INT_MIN_2,
     .interval_max = BT_GAP_ADV_FAST_INT_MAX_2,
@@ -65,11 +65,11 @@ struct bt_le_adv_param adv_param_normal = {
 
 struct bt_le_adv_param adv_param_pair = {
     .id = BT_ID_DEFAULT,
-    .sid = BT_GAP_SID_MIN,
+    .sid = 0,
     .secondary_max_skip = 0,
     .interval_min = BT_GAP_ADV_FAST_INT_MIN_2,
     .interval_max = BT_GAP_ADV_FAST_INT_MAX_2,
-    .options = BT_LE_ADV_OPT_USE_IDENTITY | BT_LE_ADV_OPT_EXT_ADV | BT_LE_ADV_OPT_CONN
+    .options = BT_LE_ADV_OPT_USE_IDENTITY | BT_LE_ADV_OPT_EXT_ADV | BT_LE_ADV_OPT_CONNECTABLE | BT_LE_ADV_OPT_ONE_TIME
 };
 
 /* Characteristic storage */
@@ -211,12 +211,6 @@ int set_adv_data(struct bt_le_ext_adv *adv) {
         }
     }
 
-    uint32_t rtc_now = 0;
-    err = get_rtc_unix_time(&rtc_now);
-    if(err) {
-        return err;
-    }
-
     uint16_t timer_status = 0;
     if(get_rtc_pit_timer_status(&timer_status)) {
         LOG_ERR("Failed to get RTC time status");
@@ -242,7 +236,12 @@ static void count_conn_cb(struct bt_conn *conn, void *user_data)
 {
     int *count = user_data;
 
-    if (bt_conn_is_type(conn, BT_CONN_TYPE_LE)) {
+    struct bt_conn_info info;
+    if (bt_conn_get_info(conn, &info) != 0) {
+        return;
+    }
+
+    if (info.type == BT_CONN_TYPE_LE) {
         (*count)++;
     }
 }

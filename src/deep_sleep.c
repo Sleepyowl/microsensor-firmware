@@ -5,6 +5,7 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/poweroff.h>
+#include <zephyr/kernel.h>
 
 LOG_MODULE_REGISTER(app_dsleep, LOG_LEVEL_DBG);
 

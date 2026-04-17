@@ -171,7 +171,7 @@
         compatible = "ti,hdc2080";
         reg = <0x40>;
         int-gpios = <&gpio1 8 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
-        label = "HDC2080";		
+        zephyr,deferred-init;		
     };
 
     /* RV-3028-C7 real-time clock */
@@ -180,8 +180,8 @@
         compatible = "microcrystal,rv3028";
         reg = <0x52>;
         int-gpios = <&gpio1 05 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
-        label = "RV3028";
 		backup-switch-mode = "disabled";
+		zephyr,deferred-init;
     };
 };
 
