@@ -10,7 +10,7 @@
 #include <zephyr/pm/state.h>
 #include <zephyr/sys/timeutil.h>
 #include <zephyr/sys/byteorder.h>
-#include <hal/nrf_power.h>
+#include <zephyr/sys/poweroff.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
 #include <hal/nrf_gpio.h>
@@ -29,13 +29,8 @@ static const struct gpio_dt_spec btn = GPIO_DT_SPEC_GET(DT_NODELABEL(button0), g
 /* INT (~INT) GPIO from DTS */
 static const struct gpio_dt_spec int_gpio = GPIO_DT_SPEC_GET(RV3028_NODE, int_gpios);
 
-static void rv3028_alarm_cb(const struct device *dev, uint16_t id, void *user) {
-	ARG_UNUSED(dev); ARG_UNUSED(id); ARG_UNUSED(user);
-}
-
 /* minutes → next occurrence (HH:MM), day wildcarded */
-int set_alarm_and_sleep(int minutes) {
-    int err;
+int set_alarm_and_sleep(int minutes) {    
     if (!device_is_ready(rtc)) {
         LOG_ERR("RTC is not ready");
         return -ENODEV;
@@ -51,43 +46,18 @@ int set_alarm_and_sleep(int minutes) {
         return -ENODEV;
     }
 
-    // struct rtc_time now;
-    // err = rtc_get_time(rtc, &now);
-    // if (err) {
-    //     LOG_ERR("RTC getting time failed: %d", err);
-    //     return err;
-    // }
-
-    // int total = (now.tm_hour * 60 + now.tm_min + minutes) % (24 * 60);
-    // struct rtc_time at = {0};
-    // at.tm_hour = total / 60;
-    // at.tm_min  = total % 60;
-
-    // uint16_t mask = RTC_ALARM_TIME_MASK_HOUR | RTC_ALARM_TIME_MASK_MINUTE;
-    // err = rtc_alarm_set_time(rtc, 0, mask, &at);
-    // if (err) {
-    //     LOG_ERR("RTC setting alarm time failed: %d", err);
-    //     return err;
-    // }
-
-    // err = rtc_alarm_set_callback(rtc, 0, rv3028_alarm_cb, NULL);
-    // if (err) {
-    //     LOG_ERR("RTC setting alarm callback failed: %d", err);
-    //     return err;
-    // }
-
     // Configure RTC INT wake source
     gpio_pin_configure_dt(&int_gpio, GPIO_INPUT);
-    nrf_gpio_cfg_sense_input(int_gpio.pin, NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
+    gpio_pin_interrupt_configure_dt(&int_gpio, GPIO_INT_LEVEL_ACTIVE);
 
     // Configure button wake source
     gpio_pin_configure_dt(&btn, GPIO_INPUT);
-    nrf_gpio_cfg_sense_input(btn.pin, NRF_GPIO_PIN_NOPULL, NRF_GPIO_PIN_SENSE_LOW);
+    gpio_pin_interrupt_configure_dt(&btn, GPIO_INT_LEVEL_ACTIVE);
 
     // Deep Sleep (System OFF)
     LOG_INF("Entering deep sleep (System OFF)");
     k_msleep(200); // Give logging subsystem time to transmit
-    nrf_power_system_off(NRF_POWER);
+    sys_poweroff();
     return 0;
 }
 
@@ -197,6 +167,8 @@ int print_rtc_time() {
         tm.tm_min,
         tm.tm_sec
     );
+
+    return 0;
 }
 
 

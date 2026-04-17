@@ -10,8 +10,7 @@
 
 LOG_MODULE_REGISTER(app_sensor, LOG_LEVEL_DBG);
 
-#define I2C_NODE       DT_NODELABEL(i2c0)
-#define HDC2080_NODE    DT_CHILD(I2C_NODE, hdc2080_40)
+#define HDC2080_NODE    DT_NODELABEL(hdc2080)
 static const struct device *dev = DEVICE_DT_GET(HDC2080_NODE);
 
 int hdc2080_get_temp_humidity(struct SensorData* data)

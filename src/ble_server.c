@@ -1,6 +1,7 @@
 #include "ble_server.h"
 #include "sensor.h"
 #include "rtc.h"
+#include "vsense.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -74,7 +75,6 @@ struct bt_le_adv_param adv_param_pair = {
 /* Characteristic storage */
 static int16_t g_temperature = 0;
 static int16_t g_humidity = 0;
-static uint32_t g_timestamp = 0;
 
 /* Read callbacks */
 static ssize_t read_temperature(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset)
@@ -127,7 +127,7 @@ static ssize_t write_currenttime(struct bt_conn *conn,
         return BT_GATT_ERR(BT_ATT_ERR_INVALID_ATTRIBUTE_LEN);
     }
 
-    struct cts_current_time *time = buf;
+    const struct cts_current_time *time = buf;
     LOG_DBG("Writing current time: %04u-%02u-%02u %02u:%02u:%02u",
             sys_le16_to_cpu(time->year),
             time->month,
@@ -179,11 +179,13 @@ BT_GATT_SERVICE_DEFINE(time_service,
 struct __attribute__((packed)) ManufacturerData {
     struct SensorData   sensorData;
     uint32_t            nextWindow;
+    uint16_t            batteryMilliVolt;
 } manufacturerData;
 
 static char name[32];
 int set_adv_data(struct bt_le_ext_adv *adv) {
     int err = 0;
+    uint16_t mv = 0;
     // Build manufacturer data
     if(manufacturerData.sensorData.magic == 0) {
         err = hdc2080_get_temp_humidity(&manufacturerData.sensorData);
@@ -191,7 +193,15 @@ int set_adv_data(struct bt_le_ext_adv *adv) {
             LOG_ERR("Couldn't read sensor: %d", err);
             return err;
         }
+
+        err = vsense_measure_mv(&mv);
+        if(err) {
+            LOG_ERR("Couldn't get battery voltage %d", err);
+        } else {
+            manufacturerData.batteryMilliVolt = mv;
+        }
     }
+
     uint32_t rtc_now = 0;
     err = get_rtc_unix_time(&rtc_now);
     if(err) {
@@ -216,6 +226,24 @@ int set_adv_data(struct bt_le_ext_adv *adv) {
         LOG_ERR("Couldn't set adv data: %d", err);
         return err;
     }
+    return 0;
+}
+
+static void count_conn_cb(struct bt_conn *conn, void *user_data)
+{
+    int *count = user_data;
+
+    if (bt_conn_is_type(conn, BT_CONN_TYPE_LE)) {
+        (*count)++;
+    }
+}
+
+static int le_conn_count(void)
+{
+    int count = 0;
+
+    bt_conn_foreach(BT_CONN_TYPE_LE, count_conn_cb, &count);
+    return count;
 }
 
 int btadv(bool pairing) {
@@ -290,6 +318,16 @@ int btadv(bool pairing) {
             }
             k_msleep(100);
         }
+    }
+
+    err = bt_le_ext_adv_stop(adv);
+    if (err && err != -EALREADY) {
+        LOG_WRN("bt_le_ext_adv_stop failed: %d", err);        
+    }
+
+    while (le_conn_count() > 0) {
+        LOG_DBG("Waiting for BLE connection(s) to close...");
+        k_msleep(200);
     }
 
     err = bt_disable();
