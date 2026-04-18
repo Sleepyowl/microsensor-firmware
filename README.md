@@ -1,94 +1,105 @@
 # Firmware for Environmental Sensor
 
-This firmware is designed for a low-power environmental sensor ([KiCad project](https://github.com/Sleepyowl/microsensor-board)).
+Firmware for a low-power environmental sensor (see https://github.com/BeeEyeIoT/microsensor-board).
 
-It supports either ZigBee or BLE mode, selectable by user via button.
+The device supports two wireless modes: ZigBee and BLE, selectable via a button.  
+By default, the device starts in ZigBee mode.
 
-The device starts in the ZigBee mode.
+## Mode Selection
 
-## Mode selection
+To enter mode selection:
 
-To select the device mode, press and hold the button for 5 seconds until LED starts fast blinking. 
+1. Press and hold the button for 5 seconds until the LED starts fast blinking.  
+2. Release the button.
 
-Release the button. The LED will blink slower indicating the current mode of operation:
-- Singular blinks mean BLE
-- Double blinks mean ZigBee
+The LED will then blink slowly to indicate the current mode:
+- Single blink → BLE  
+- Double blink → ZigBee  
 
-Press the button to change the mode.
+Press the button to switch modes.
 
-Otherwise wait for 5 seconds to exit the configuration mode. 
+If no action is taken for 5 seconds, the device exits configuration mode.  
+Upon exit, the LED performs a long blink.
 
-After exiting the configuration mode, the device will emit a long blink.
+## ZigBee Mode
 
-## ZigBee mode
+In ZigBee mode, the device operates as a sleepy end device.
 
-The device in ZigBee mode implements sleepy end device. 
+- Pressing the button restarts the device.
 
-Pressing the button restarts the device.
+### Exposed Clusters and Attributes  
+(Mandatory clusters omitted)
 
-Device exposes the following clusters and attributes (omittin mandatory clusters):
 - msTemperatureMeasurement
-  - measure_value
-	- min_measure_value
-	- max_measure_value
-	- tolerance
+  - measured_value  
+  - min_measured_value  
+  - max_measured_value  
+  - tolerance  
+
 - msRelativeHumidity
-  - measure_value
-	- min_measure_value
-	- max_measure_value	
+  - measured_value  
+  - min_measured_value  
+  - max_measured_value  
+
 - genPowerCfg
-  - batt_voltage_100mv
-  - batt_percentage
+  - battery_voltage_100mV  
+  - battery_percentage  
 
-## BLE mode
+## BLE Mode
 
-The device in BLE mode has two possible operation modes: active and low power. The device operates by default in the low power mode.
+BLE mode has two operating states:
+- Low Power (default)
+- Active
 
-### Active mode
+### Active Mode
 
-The active mode is activated by the button press. During the active mode, the device is connectable. 
+Activated by a button press and also enabled on the first boot (after reset or power-on).
 
-While there's an active connection, the device stays in the active mode. Otherwise it switches back to the low power mode after 30 seconds.
+- Device becomes connectable
+- Remains active while a connection is established
+- If not connected, returns to low power after 30 seconds
 
-This mode allows to update firmware using MCUmgr (for example with nRF Connect Device Manager app).
+Supports:
+- Firmware updates via MCUmgr (e.g. using nRF Connect Device Manager)
+- Experimental GATT services (work in progress)
 
-It also exposes several GATT services that are work in progress.
+### Low Power Mode
 
-### Passive mode
+(Default operating state after the active period)
 
-The passive mode is the default mode of operation. While in this mode, the device makes exactly 4 extended announces with 100-150ms interval, and then enters System OFF. The device announces every minute.
+- Device sends 4 extended advertisements at 100–150 ms intervals
+- Then enters System OFF
+- Repeats every 60 seconds
 
-The sensor data is send inside the announces in the Manufacturer Data. 
+Sensor data is included in Manufacturer Data:
 
-The payload includes:
-  * Temperature
-  * Humidity
-  * Battery voltage
-  * Time until next advertisement in ms
+- Temperature  
+- Humidity  
+- Battery voltage  
+- Time until next advertisement (ms)
 
 ## Building
 
-1. Install the **ZigBee Addon R23**
-   (Recommended: use the nRF Connect extension in Visual Studio Code)
+1. Install ZigBee Addon R23  
+   (Recommended: use the nRF Connect for VS Code extension)
 
-2. Generate a signing key before building:
+2. Generate a signing key:
 
-```bash
-openssl ecparam -name prime256v1 -genkey -noout -out key.pem
-```
+   openssl ecparam -name prime256v1 -genkey -noout -out key.pem
 
-3. Create a build (use `prj-release.conf` for release)
+3. Build the firmware  
+   - Use `prj-release.conf` for release builds
 
 4. Flash the device
 
-## Updating Firmware Over-the-Air (OTA)
+## OTA Firmware Update
 
-1. Build the firmware
+1. Build the firmware  
 2. Locate the signed image:
-   - either `build/microsensor/zephyr/zephyr.signed.bin`
-   - or `build/dfu_application.zip`
-3. Copy the image to your phone
-4. Put the device in active mode by pressing the button
-5. Upload the file using the **nRF Connect Device Manager** app
-6. The device will automatically restart and apply the new firmware
-7. If a critical error occurs, the firmware will be reverted
+   - build/microsensor/zephyr/zephyr.signed.bin  
+   - or build/dfu_application.zip  
+3. Copy the file to your phone  
+4. Enter Active Mode (press the button or use initial boot window)  
+5. Upload using nRF Connect Device Manager  
+6. Device will reboot and apply the update  
+7. On critical failure, the firmware is automatically reverted  
