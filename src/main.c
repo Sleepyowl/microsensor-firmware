@@ -2,6 +2,7 @@
 #include "rtc.h"
 #include "vsense.h"
 #include "deep_sleep.h"
+#include "sensor_hdc2080.h"
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -123,6 +124,17 @@ static bool get_is_low_power_wake(void) {
 
 static int initialize_peripherals(bool fast) {
     int ret = 0;
+
+    ret = rtc_init(!fast);
+    if (ret) {
+        LOG_ERR("RTC init failed: %d", ret);
+    }
+
+    ret = hdc2080_init();
+    if (ret) {
+        LOG_ERR("HDC2080 init failed: %d", ret);
+    }
+
     if (!fast) {
         LOG_INF("Normal boot");
         blink(1, 200);  // indicator that thing is working

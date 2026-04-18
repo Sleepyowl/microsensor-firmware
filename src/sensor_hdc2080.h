@@ -42,3 +42,6 @@ int hdc2080_get_temp_humidity_x256(int16_t *temp, int16_t *humidity);
  * @retval -errno   Error code (Zephyr convention)
  */
 int hdc2080_get_temp_humidity_x100(int16_t *temp, int16_t *humidity);
+
+
+int hdc2080_init(void);

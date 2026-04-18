@@ -25,21 +25,26 @@ int megablink(int countA, int countB, int spacing);
 #define RV3028_NODE    DT_NODELABEL(rv3028)
 static const struct device *rtc = DEVICE_DT_GET(RV3028_NODE);
 
-int rv3028_clear_tf(const struct device *dev);
-int intinitialize_rtc(bool setTime) {
+bool ensure_rtc(void) {
+    int ret = 0;
 
-    int err = device_init(rtc);
-    if (err && err != -EALREADY) {
-        LOG_ERR("RTC device failed to initialize: %d", err);
-        return -ENODEV;
+    ret = device_init(rtc);
+    if(ret && ret != -EALREADY) {
+        LOG_ERR("RTC init failed: %d", ret);
+        return false;
     }
 
-    if (!device_is_ready(rtc)) {
+    return device_is_ready(rtc);
+}
+
+int rv3028_clear_tf(const struct device *dev);
+int rtc_init(bool setTime) {
+    if (!ensure_rtc()) {
         LOG_ERR("RTC is not ready");
         return -ENODEV;
     }
 
-    err = rv3028_clear_tf(rtc);
+    int err = rv3028_clear_tf(rtc);
     if(err) {
         LOG_WRN("Failed to clear TF bit: %d", err);
         return -EIO;
@@ -74,7 +79,7 @@ int intinitialize_rtc(bool setTime) {
 }
 
 int get_rtc_unix_time(uint32_t* unix_timestamp) {
-    if (!device_is_ready(rtc)) {
+    if (!ensure_rtc()) {
         LOG_ERR("RTC is not ready");
         return -ENODEV;
     }
@@ -96,8 +101,10 @@ BUILD_ASSERT(sizeof(struct rtc_time) >= sizeof(struct tm),
              "struct rtc_time must be at least as large as struct tm");
 
 int set_rtc_unix_time(uint32_t unix_timestamp) {
-    if (!device_is_ready(rtc))
+    if (!ensure_rtc()) {
+        LOG_ERR("RTC is not ready");
         return -ENODEV;
+    }
 
     char buf[sizeof(struct rtc_time)];
     memset(buf, 0, sizeof(buf));
@@ -114,8 +121,9 @@ int set_rtc_unix_time(uint32_t unix_timestamp) {
 }
 
 int print_rtc_time(void) {
-    if (!device_is_ready(rtc))
+    if (!device_is_ready(rtc)) {
         return -ENODEV;
+    }
 
     struct rtc_time tm;
     int err = rtc_get_time(rtc, &tm);
@@ -138,8 +146,10 @@ int print_rtc_time(void) {
 
 int get_rtc_cts_time(struct cts_current_time *cts)
 {
-    if (!device_is_ready(rtc))
+    if (!ensure_rtc()) {
+        LOG_ERR("RTC is not ready");
         return -ENODEV;
+    }
 
     struct rtc_time rt;
     int err = rtc_get_time(rtc, &rt);
@@ -167,8 +177,10 @@ int get_rtc_cts_time(struct cts_current_time *cts)
 
 int set_rtc_cts_time(const struct cts_current_time *cts)
 {
-    if (!device_is_ready(rtc))
+    if (!ensure_rtc()) {
+        LOG_ERR("RTC is not ready");
         return -ENODEV;
+    }
 
     struct rtc_time rt;
     memset(&rt, 0, sizeof(rt));
@@ -199,6 +211,12 @@ int rv3028_get_timer_status(const struct device *dev, uint16_t *timer_status);
 
 int enable_rtc_pit(uint16_t period_seconds) {
     int err;
+
+    if (!ensure_rtc()) {
+        LOG_ERR("RTC is not ready");
+        return -ENODEV;
+    }
+
     if (!device_is_ready(rtc)) {
         LOG_ERR("RTC is not ready");
         return -ENODEV;
@@ -215,7 +233,7 @@ int enable_rtc_pit(uint16_t period_seconds) {
 
 int get_rtc_pit_timer_status(uint16_t *timer_status) {
     int err;
-    if (!device_is_ready(rtc)) {
+    if (!ensure_rtc()) {
         LOG_ERR("RTC is not ready");
         return -ENODEV;
     }

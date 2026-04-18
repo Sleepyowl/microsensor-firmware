@@ -16,7 +16,7 @@ struct __attribute__((packed)) cts_current_time {
     uint8_t  adjust_reason;/* bitfield */
 };
 
-int intinitialize_rtc(bool setTime);
+int rtc_init(bool setTime);
 int get_rtc_unix_time(uint32_t* unix_timestamp);
 int set_rtc_unix_time(uint32_t unix_timestamp);
 int print_rtc_time(void);

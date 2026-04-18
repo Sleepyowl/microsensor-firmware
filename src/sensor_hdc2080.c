@@ -15,12 +15,7 @@ static const struct device *dev = DEVICE_DT_GET(HDC2080_NODE);
 
 int hdc2080_get_raw_temp_humidity(struct sensor_value *t, struct sensor_value *h)
 {
-    int ret = device_init(dev);
-    if (ret && ret != -EALREADY) {
-        LOG_ERR("HDC2080 couldn't be initialized: %d", ret);
-        return -ENODEV;
-    }
-
+    int ret;
     if (!device_is_ready(dev)) {
         LOG_ERR("HDC2080 is not ready");
         return -ENODEV;
@@ -71,6 +66,22 @@ int hdc2080_get_temp_humidity_x256(int16_t *temp, int16_t *humidity) {
 
     *temp = (int16_t)(t.val1 * 256 + (t.val2 + 1953) / 3906);
     *humidity = (int16_t)(h.val1 * 256 + (h.val2 + 1953) / 3906);
+
+    return 0;
+}
+
+
+int hdc2080_init(void) {
+    int ret = device_init(dev);
+    if (ret && ret != -EALREADY) {
+        LOG_ERR("HDC2080 couldn't be initialized: %d", ret);
+        return -ENODEV;
+    }
+
+    if (!device_is_ready(dev)) {
+        LOG_ERR("HDC2080 is not ready");
+        return -ENODEV;
+    }
 
     return 0;
 }
